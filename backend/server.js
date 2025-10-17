@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer'); // ✅ added
 
-// Auth middleware (in case you need it at app-level later)
+// Auth middleware
 const { authenticateToken, requireRole } = require('./middleware/auth');
 
 const app = express();
@@ -15,14 +15,21 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Allow multiple frontend origins (React dev servers)
+// Allow frontend origins
+const allowedOrigins = [
+  'http://localhost:3000', // React dev server
+  'https://vivekanandaboysclub.netlify.app' // your production Netlify frontend
+];
+
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || origin.startsWith("http://localhost")) {
-        callback(null, true);
+    origin: function (origin, callback) {
+      // allow requests with no origin (like Postman, curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        return callback(new Error('Not allowed by CORS'));
       }
     },
     credentials: true,
@@ -48,10 +55,10 @@ if (!fs.existsSync(dbPath)) {
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-// Serve proof/image uploads at http://localhost:4000/uploads/<filename>
+// Serve uploads
 app.use('/uploads', express.static(uploadDir));
 
-// ----------------- Email Transporter (for forgot password) -----------------
+// ----------------- Email Transporter -----------------
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -60,7 +67,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// make transporter accessible in routes
 app.set("mailer", transporter);
 
 // ----------------- Routes -----------------
@@ -68,12 +74,11 @@ app.get('/', (req, res) => {
   res.json({ message: '🎉 Pandal backend running' });
 });
 
-// ✅ Mount routes (includes forgot/reset password inside auth.js)
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/donors', require('./routes/donors'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/admins', require('./routes/admins'));
-app.use('/api/donate', require('./routes/donate')); // donation handling
+app.use('/api/donate', require('./routes/donate'));
 
 // ----------------- 404 Handler -----------------
 app.use((req, res) => {
